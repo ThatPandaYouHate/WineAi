@@ -101,6 +101,8 @@ Taggar som pushas:
 - `sha-<commit>`
 - git-taggar (`v*`)
 
+Frontend-image stödjer miljövariabeln `BACKEND_UPSTREAM` (default `backend:5000`) för att styra vart `/api` proxas.
+
 ### GitHub-inställningar
 
 1. Se till att GitHub Actions är aktiverat för repot.
