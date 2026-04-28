@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wine AI Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            height: 100vh;
+        }
+
+        .chat-container {
+            max-width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+        }
+
+        .chat-header {
+            background-color: #ffffff;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            position: fixed;
+            width: 100%;
+            top: 0;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+            padding-top: 7rem;
+            padding-bottom: 5rem;
+            padding-left: 2rem;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            max-width: 80%;
+            padding: 0.8rem;
+            border-radius: 1rem;
+            position: relative;
+        }
+
+        .user-message {
+            background-color: #722f37;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 0.2rem;
+        }
+
+        .bot-message {
+            background-color: #e9ecef;
+            color: black;
+            margin-right: auto;
+            border-bottom-left-radius: 0.2rem;
+            white-space: pre-line;
+        }
+
+        .input-container {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            padding: 1rem;
+            background-color: white;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        #message-input {
+            flex-grow: 1;
+            padding: 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 1.5rem;
+            outline: none;
+        }
+
+        #send-button {
+            background-color: #722f37;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 1.5rem;
+            cursor: pointer;
+        }
+
+        #send-button:disabled {
+            background-color: #cccccc;
+        }
+
+        .loading {
+            display: none;
+            margin: 1rem auto;
+            text-align: center;
+        }
+
+        .store-dropdown {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid #fff;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            width: 80%;
+            max-width: 500px;
+            height: auto;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .store-option {
+            display: flex;
+            align-items: center;
+            padding: 0.3rem;
+            color: white;
+        }
+
+        .store-option input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        /* Add styles for the search input */
+        .store-search {
+            width: 80%;
+            max-width: 300px;
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid #fff;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .store-search::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* Add styles for the new store selection container */
+        .store-selection-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 1rem;
+        }
+
+        /* Add styles for the country selection container */
+        .filter-selection-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 1rem;
+        }
+
+        .country-dropdown {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid #fff;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            width: 80%;
+            max-width: 300px;
+            height: auto;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .country-search {
+            width: 80%;
+            max-width: 300px;
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid #fff;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        /* Add a container for both filters */
+        .filters-container {
+            display: flex;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 1rem;
+            padding-bottom: 2rem;
+        }
+
+        /* Update store and filter selection containers */
+        .store-selection-container,
+        .filter-selection-container {
+            flex: 1;
+            max-width: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Adjust dropdown widths */
+        .store-dropdown,
+        .country-dropdown,
+        .store-search,
+        .country-search {
+            width: 100%;
+            max-width: none;
+        }
+
+        /* Add styles for the filter labels */
+        .filter-label {
+            color: white;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        /* Add styles for the menu button and side menu */
+        .menu-button {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            background: none;
+            border: none;
+            color: rgb(27, 27, 27);
+            font-size: 2rem;
+            cursor: pointer;
+            z-index: 1000;
+        }
+
+        .side-menu {
+            position: fixed;
+            top: 0;
+            left: -300px; /* Start off-screen */
+            width: 300px;
+            height: 100vh;
+            background-color: #511717;
+            padding: 1rem;
+            padding-top: 3rem; /* Add space for the title */
+            transition: left 0.3s ease;
+            z-index: 999;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+            overflow-y: auto; /* Enable vertical scrolling */
+        }
+
+        .side-menu.open {
+            left: 0;
+        }
+
+        /* Adjust header to accommodate menu button */
+        .chat-header h1 {
+            margin: 0 auto;
+            padding: 0 3rem; /* Make space for menu button */
+        }
+
+        /* Add styles for the price slider */
+        .price-filter {
+            color: white;
+            padding: 1rem 0;
+            width: 100%;
+        }
+
+        .price-slider {
+            width: 100%;
+            margin: 0px 0;
+        }
+
+        .price-inputs {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .price-inputs input {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #fff;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        /* Add styles for the volume slider (similar to price slider) */
+        .volume-filter {
+            color: white;
+            padding: 1rem 0;
+            width: 100%;
+        }
+
+        /* Reuse the same slider styles for both price and volume */
+        .slider-container {
+            position: relative;
+            width: 100%;
+            height: 40px;
+        }
+
+        .volume-inputs {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .volume-inputs input {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #fff;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <button class="menu-button" id="menu-button">☰</button>
+        <div class="side-menu" id="side-menu">
+            <div class="filters-container">
+                <div class="store-selection-container">
+                    <div class="filter-label">Select Stores</div>
+                    <input type="text" 
+                           id="store-search" 
+                           class="store-search" 
+                           placeholder="Search stores...">
+                    <div id="store-selector" class="store-dropdown">
+                        <div class="store-option">Loading stores...</div>
+                    </div>
+                </div>
+                <div class="filter-selection-container">
+                    <div class="filter-label">Select Countries</div>
+                    <input type="text" 
+                           id="country-search" 
+                           class="country-search" 
+                           placeholder="Search countries...">
+                    <div id="country-selector" class="country-dropdown">
+                        <div class="store-option">Loading countries...</div>
+                    </div>
+                </div>
+                <div class="price-filter">
+                    <div class="filter-label">Price Range</div>
+                    <div class="slider-container">
+                        <div class="slider-track"></div>
+                        <div class="slider-range"></div>
+                        <input type="range" 
+                               id="price-slider-min" 
+                               class="price-slider" 
+                               min="0" 
+                               max="5000" 
+                               step="50" 
+                               value="0">
+                        <input type="range" 
+                               id="price-slider-max" 
+                               class="price-slider" 
+                               min="0" 
+                               max="5000" 
+                               step="50" 
+                               value="5000">
+                    </div>
+                    <div class="price-inputs">
+                        <input type="number" 
+                               id="min-price" 
+                               min="0" 
+                               max="5000" 
+                               value="0">
+                        <span style="color: white;">-</span>
+                        <input type="number" 
+                               id="max-price" 
+                               min="0" 
+                               max="5000" 
+                               value="5000">
+                    </div>
+                </div>
+                <div class="volume-filter">
+                    <div class="filter-label">Volume Range (ml)</div>
+                    <div class="slider-container">
+                        <div class="slider-track"></div>
+                        <div class="slider-range"></div>
+                        <input type="range" 
+                               id="volume-slider-min" 
+                               class="price-slider" 
+                               min="0" 
+                               max="1500" 
+                               step="50" 
+                               value="0">
+                        <input type="range" 
+                               id="volume-slider-max" 
+                               class="price-slider" 
+                               min="0" 
+                               max="1500" 
+                               step="50" 
+                               value="1500">
+                    </div>
+                    <div class="volume-inputs">
+                        <input type="number" 
+                               id="min-volume" 
+                               min="0" 
+                               max="1500" 
+                               value="0">
+                        <span style="color: white;">-</span>
+                        <input type="number" 
+                               id="max-volume" 
+                               min="0" 
+                               max="1500" 
+                               value="1500">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="chat-header">
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <div class="message bot-message">
+                Hello! I'm your wine assistant. Tell me about the food you're preparing or what kind of wine you're looking for, and I'll recommend some options for you.
+            </div>
+        </div>
+        <div class="loading" id="loading">
+            Thinking...
+        </div>
+        <div class="input-container">
+            <input type="text" id="message-input" placeholder="Type your message...">
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const chatMessages = document.getElementById('chat-messages');
+        const loading = document.getElementById('loading');
+        const storeSelector = document.getElementById('store-selector');
+
+        let allStores = []; // Add this to store all stores
+        let allCountries = [
+            "Frankrike", "Italien", "Spanien", "Tyskland", "USA", 
+            "Argentina", "Australien", "Chile", "Portugal", "Sydafrika",
+            "Österrike", "Nya Zeeland", "Ungern", "Grekland"
+        ];
+
+        function addMessage(message, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            messageDiv.textContent = message;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function loadStores() {
+            const storeSelector = document.getElementById('store-selector');
+            const searchInput = document.getElementById('store-search');
+
+            try {
+                const response = await fetch('/get-stores');
+                allStores = await response.json(); // Store all stores
+                
+                console.log('Received stores:', allStores);
+                
+                renderStores(allStores); // Initial render
+
+                // Add search functionality
+                searchInput.addEventListener('input', (e) => {
+                    const searchTerm = e.target.value.toLowerCase();
+                    const filteredStores = allStores.filter(store => {
+                        const storeName = (store.displayName || store.alias || '').toLowerCase();
+                        const storeId = (store.siteId || '').toString().toLowerCase();
+                        const storeCity = (store.city || '').toString().toLowerCase();
+                        return storeName.includes(searchTerm) || storeCity.includes(searchTerm) || storeId.includes(searchTerm);
+                    });
+                    renderStores(filteredStores);
+                });
+
+            } catch (error) {
+                console.error('Failed to load stores:', error);
+                storeSelector.innerHTML = '<div class="store-option">Failed to load stores</div>';
+            }
+        }
+
+        // Separate render function
+        function renderStores(stores) {
+            const storeSelector = document.getElementById('store-selector');
+            storeSelector.innerHTML = '';
+            
+            stores.forEach(store => {
+                const storeOption = document.createElement('div');
+                storeOption.className = 'store-option';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = store.siteId || '';
+                checkbox.id = `store-${store.siteId}`;
+
+                const label = document.createElement('label');
+                label.htmlFor = checkbox.id;
+                const storeName = store.displayName || store.alias || 'Unknown Store';
+                const storeCity = store.city || 'Unknown City';
+                const storeId = store.siteId || '';
+                label.textContent = `${storeName}, ${storeCity} (${storeId})`;
+
+                storeOption.appendChild(checkbox);
+                storeOption.appendChild(label);
+                storeSelector.appendChild(storeOption);
+            });
+        }
+
+        function getSelectedStores() {
+            const checkboxes = document.querySelectorAll('#store-selector input[type="checkbox"]');
+            return Array.from(checkboxes)
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => checkbox.value);
+        }
+
+        function loadCountries() {
+            const countrySelector = document.getElementById('country-selector');
+            const searchInput = document.getElementById('country-search');
+
+            function renderCountries(countries) {
+                countrySelector.innerHTML = '';
+                
+                countries.forEach(country => {
+                    const countryOption = document.createElement('div');
+                    countryOption.className = 'store-option';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = country;
+                    checkbox.id = `country-${country}`;
+
+                    const label = document.createElement('label');
+                    label.htmlFor = checkbox.id;
+                    label.textContent = country;
+
+                    countryOption.appendChild(checkbox);
+                    countryOption.appendChild(label);
+                    countrySelector.appendChild(countryOption);
+                });
+            }
+
+            renderCountries(allCountries);
+
+            searchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const filteredCountries = allCountries.filter(country => 
+                    country.toLowerCase().includes(searchTerm)
+                );
+                renderCountries(filteredCountries);
+            });
+        }
+
+        function getSelectedCountries() {
+            const checkboxes = document.querySelectorAll('#country-selector input[type="checkbox"]');
+            return Array.from(checkboxes)
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => checkbox.value);
+        }
+
+        // Update price slider functionality to match volume slider
+        const minPriceSlider = document.getElementById('price-slider-min');
+        const maxPriceSlider = document.getElementById('price-slider-max');
+        const minPrice = document.getElementById('min-price');
+        const maxPrice = document.getElementById('max-price');
+        const priceSliderRange = document.querySelector('.price-filter .slider-range');
+
+        function updatePriceSliderRange() {
+            const min = parseInt(minPriceSlider.value);
+            const max = parseInt(maxPriceSlider.value);
+            const percent1 = (min / minPriceSlider.max) * 100;
+            const percent2 = (max / maxPriceSlider.max) * 100;
+            priceSliderRange.style.left = percent1 + '%';
+            priceSliderRange.style.width = (percent2 - percent1) + '%';
+        }
+
+        // Update min price slider and input
+        minPriceSlider.addEventListener('input', (e) => {
+            let minValue = parseInt(e.target.value);
+            let maxValue = parseInt(maxPriceSlider.value);
+            
+            if (minValue > maxValue) {
+                minValue = maxValue;
+                minPriceSlider.value = minValue;
+            }
+            minPrice.value = minValue;
+            updatePriceSliderRange();
+        });
+
+        // Update max price slider and input
+        maxPriceSlider.addEventListener('input', (e) => {
+            let maxValue = parseInt(e.target.value);
+            let minValue = parseInt(minPriceSlider.value);
+            
+            if (maxValue < minValue) {
+                maxValue = minValue;
+                maxPriceSlider.value = maxValue;
+            }
+            maxPrice.value = maxValue;
+            updatePriceSliderRange();
+        });
+
+        // Update price sliders when inputs change
+        minPrice.addEventListener('input', (e) => {
+            let value = parseInt(e.target.value);
+            if (isNaN(value)) value = 0;
+            if (value < 0) value = 0;
+            if (value > parseInt(maxPrice.value)) {
+                value = parseInt(maxPrice.value);
+            }
+            minPrice.value = value;
+            minPriceSlider.value = value;
+            updatePriceSliderRange();
+        });
+
+        maxPrice.addEventListener('input', (e) => {
+            let value = parseInt(e.target.value);
+            if (isNaN(value)) value = 5000;
+            if (value > 5000) value = 5000;
+            if (value < parseInt(minPrice.value)) {
+                value = parseInt(minPrice.value);
+            }
+            maxPrice.value = value;
+            maxPriceSlider.value = value;
+            updatePriceSliderRange();
+        });
+
+        // Initialize price slider range
+        updatePriceSliderRange();
+
+        // Add volume slider functionality
+        const minVolumeSlider = document.getElementById('volume-slider-min');
+        const maxVolumeSlider = document.getElementById('volume-slider-max');
+        const minVolume = document.getElementById('min-volume');
+        const maxVolume = document.getElementById('max-volume');
+        const volumeSliderRange = document.querySelector('.volume-filter .slider-range');
+
+        function updateVolumeSliderRange() {
+            const min = parseInt(minVolumeSlider.value);
+            const max = parseInt(maxVolumeSlider.value);
+            const percent1 = (min / minVolumeSlider.max) * 100;
+            const percent2 = (max / maxVolumeSlider.max) * 100;
+            volumeSliderRange.style.left = percent1 + '%';
+            volumeSliderRange.style.width = (percent2 - percent1) + '%';
+        }
+
+        // Update min volume slider and input
+        minVolumeSlider.addEventListener('input', (e) => {
+            let minValue = parseInt(e.target.value);
+            let maxValue = parseInt(maxVolumeSlider.value);
+            
+            if (minValue > maxValue) {
+                minValue = maxValue;
+                minVolumeSlider.value = minValue;
+            }
+            minVolume.value = minValue;
+            updateVolumeSliderRange();
+        });
+
+        // Update max volume slider and input
+        maxVolumeSlider.addEventListener('input', (e) => {
+            let maxValue = parseInt(e.target.value);
+            let minValue = parseInt(minVolumeSlider.value);
+            
+            if (maxValue < minValue) {
+                maxValue = minValue;
+                maxVolumeSlider.value = maxValue;
+            }
+            maxVolume.value = maxValue;
+            updateVolumeSliderRange();
+        });
+
+        // Update volume sliders when inputs change
+        minVolume.addEventListener('input', (e) => {
+            let value = parseInt(e.target.value);
+            if (isNaN(value)) value = 0;
+            if (value < 0) value = 0;
+            if (value > parseInt(maxVolume.value)) {
+                value = parseInt(maxVolume.value);
+            }
+            minVolume.value = value;
+            minVolumeSlider.value = value;
+            updateVolumeSliderRange();
+        });
+
+        maxVolume.addEventListener('input', (e) => {
+            let value = parseInt(e.target.value);
+            if (isNaN(value)) value = 1500;
+            if (value > 1500) value = 1500;
+            if (value < parseInt(minVolume.value)) {
+                value = parseInt(minVolume.value);
+            }
+            maxVolume.value = value;
+            maxVolumeSlider.value = value;
+            updateVolumeSliderRange();
+        });
+
+        // Initialize volume slider range
+        updateVolumeSliderRange();
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            const selectedStores = getSelectedStores();
+            const selectedCountries = getSelectedCountries();
+            const priceRange = {
+                min: parseInt(minPrice.value),
+                max: parseInt(maxPrice.value)
+            };
+            const volumeRange = {
+                min: parseInt(minVolume.value),
+                max: parseInt(maxVolume.value)
+            };
+            
+            if (selectedStores.length === 0) {
+                addMessage('Please select at least one store first.', false);
+                return;
+            }
+
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+            
+            addMessage(message, true);
+            messageInput.value = '';
+            
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch('/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        prompt: message,
+                        storeIds: selectedStores,
+                        countries: selectedCountries,
+                        priceRange: priceRange,
+                        volumeRange: volumeRange
+                    })
+                });
+
+                const data = await response.json();
+                addMessage(data.response, false);
+            } catch (error) {
+                addMessage('Sorry, there was an error processing your request.', false);
+            }
+
+            loading.style.display = 'none';
+            messageInput.disabled = false;
+            sendButton.disabled = false;
+            messageInput.focus();
+        }
+
+        // Initialize both stores and countries
+        loadStores();
+        loadCountries();
+
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Add menu functionality
+        const menuButton = document.getElementById('menu-button');
+        const sideMenu = document.getElementById('side-menu');
+        
+        menuButton.addEventListener('click', () => {
+            sideMenu.classList.toggle('open');
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!sideMenu.contains(e.target) && !menuButton.contains(e.target)) {
+                sideMenu.classList.remove('open');
+            }
+        });
+    </script>
+</body>
+</html>

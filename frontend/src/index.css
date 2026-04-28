@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply font-sans text-neutral-900 antialiased;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-wine text-white px-4 py-2 rounded-full font-medium
+           hover:bg-wine-accent active:bg-wine-dark
+           disabled:bg-neutral-300 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-wine-accent focus:ring-offset-2
+           transition-colors;
+  }
+
+  .input {
+    @apply w-full bg-white/10 text-white placeholder-white/60
+           border border-white/30 rounded-md px-3 py-2
+           focus:outline-none focus:ring-2 focus:ring-white/50;
+  }
+
+  .filter-label {
+    @apply text-white font-semibold text-sm uppercase tracking-wide mb-2;
+  }
+
+  /* Markdown formatting inside bot bubble */
+  .prose-bubble p {
+    @apply mb-2 last:mb-0;
+  }
+  .prose-bubble strong {
+    @apply font-semibold text-wine-dark;
+  }
+  .prose-bubble ol {
+    @apply list-decimal pl-5 space-y-1;
+  }
+  .prose-bubble ul {
+    @apply list-disc pl-5 space-y-1;
+  }
+  .prose-bubble code {
+    @apply bg-neutral-200 px-1 rounded text-sm;
+  }
+}
