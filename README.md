@@ -1,14 +1,14 @@
 # Wine AI
 
-En lokal vinrekommendationsapp som kombinerar **Systembolagets sortimentdata** med en **lokal LLM via Ollama** för att föreslå viner som passar till maten du lagar — filtrerat på de butiker du har nära dig.
+En vinrekommendationsapp som kombinerar **Systembolagets sortimentdata** med **OpenAI GPT-modeller via API** för att föreslå viner som passar till maten du lagar — filtrerat på de butiker du har nära dig.
 
 ```mermaid
 flowchart LR
     User[Browser] -->|POST /api/ask| FastAPI
     FastAPI -->|filter| Cache[(In-memory<br/>assortment)]
-    FastAPI -->|stream prompt| Ollama
-    Ollama -->|tokens| FastAPI
-    FastAPI -->|StreamingResponse| User
+    FastAPI -->|chat completion| OpenAI
+    OpenAI -->|JSON picks| FastAPI
+    FastAPI -->|JSON response| User
     JSON[assortments/*.json] -.->|lazy load| Cache
 ```
 
@@ -27,11 +27,7 @@ flowchart LR
 
 - Python 3.11 eller senare
 - Node.js 18+ och npm (för frontend)
-- [Ollama](https://ollama.ai) installerat och körande lokalt
-- En modell hämtad i Ollama, t.ex.:
-  ```sh
-  ollama pull mistral
-  ```
+- OpenAI API-nyckel
 
 ### 1. Backend
 
@@ -73,21 +69,72 @@ Frontend startar på <http://localhost:5173> och proxar `/api/*` till backend au
 2. Klicka på menyknappen och välj minst en butik.
 3. Justera filter (länder, pris, volym) om du vill.
 4. Skriv vad du lagar — t.ex. *"pizza med skinka och svamp"* — och tryck **Skicka**.
-5. Svaret strömmas in tecken för tecken från din lokala LLM.
+5. Du får ett strukturerat svar med rekommenderade viner.
 
 ## Konfiguration
 
 Alla inställningar läses från `backend/.env` (eller miljövariabler):
 
-| Variabel           | Default                  | Beskrivning                                                |
-| ------------------ | ------------------------ | ---------------------------------------------------------- |
-| `OLLAMA_URL`       | `http://localhost:11434` | Var Ollama lyssnar                                         |
-| `OLLAMA_MODEL`     | `mistral`                | Modellnamn                                                 |
-| `ASSORTMENTS_DIR`  | `../assortments`         | Mapp med sortiments-JSON                                   |
-| `MAX_WINES_TO_LLM` | `80`                     | Maxantal viner som skickas i prompten                      |
-| `CORS_ORIGINS`     | `http://localhost:5173`  | Tillåtna frontend-origins (kommaseparerade)                |
-| `LOG_LEVEL`        | `INFO`                   | `DEBUG`, `INFO`, `WARNING`, `ERROR`                        |
-| `HOST` / `PORT`    | `0.0.0.0` / `5000`       | Bind-adress (om du kör `python -m app.main` direkt)        |
+| Variabel           | Default                    | Beskrivning                                                 |
+| ------------------ | -------------------------- | ----------------------------------------------------------- |
+| `OPENAI_BASE_URL`  | `https://api.openai.com/v1`| OpenAI API-bas-URL                                          |
+| `OPENAI_API_KEY`   | *(tom)*                    | Din OpenAI API-nyckel                                       |
+| `OPENAI_MODEL`     | `gpt-5-mini`               | Modellnamn                                                  |
+| `ASSORTMENTS_DIR`  | `../assortments`           | Mapp med sortiments-JSON                                    |
+| `MAX_WINES_TO_LLM` | `80`                       | Maxantal viner som skickas i prompten                       |
+| `CORS_ORIGINS`     | `http://localhost:5173`    | Tillåtna frontend-origins (kommaseparerade)                 |
+| `LOG_LEVEL`        | `INFO`                     | `DEBUG`, `INFO`, `WARNING`, `ERROR`                         |
+| `HOST` / `PORT`    | `0.0.0.0` / `5000`         | Bind-adress (om du kör `python -m app.main` direkt)         |
+
+## CI/CD till GHCR
+
+Workflow finns i `.github/workflows/build-and-push-ghcr.yml` och körs på push till `main` (samt manuellt via `workflow_dispatch`).
+
+Den publicerar två images:
+
+- `ghcr.io/<owner>/wineai-backend`
+- `ghcr.io/<owner>/wineai-frontend`
+
+Taggar som pushas:
+
+- `latest` (endast default branch)
+- `sha-<commit>`
+- git-taggar (`v*`)
+
+### GitHub-inställningar
+
+1. Se till att GitHub Actions är aktiverat för repot.
+2. Workflown använder inbyggda `GITHUB_TOKEN` (ingen extra secret krävs för push till GHCR).
+3. Om repot är privat och servern ska pulla images, skapa en PAT med `read:packages` på servern.
+
+## Köra i containrar (2 tjänster)
+
+Bygg lokalt:
+
+```sh
+docker build -f backend/Dockerfile -t wineai-backend:local .
+docker build -f frontend/Dockerfile -t wineai-frontend:local .
+```
+
+Kör backend:
+
+```sh
+docker run --rm -p 5000:5000 \
+  --env-file backend/.env \
+  -v "$(pwd)/assortments:/app/assortments:ro" \
+  wineai-backend:local
+```
+
+Kör enklast med Docker Compose (2 containrar):
+
+```sh
+export GHCR_OWNER=<ditt_github_namn_i_små_bokstäver>
+docker compose pull
+docker compose up -d
+```
+
+Frontend: <http://localhost:8080>  
+Backend health: <http://localhost:5000/api/health>
 
 ## API
 
@@ -96,7 +143,7 @@ Alla inställningar läses från `backend/.env` (eller miljövariabler):
 | GET   | `/api/health`    | Hälsokoll                                         |
 | GET   | `/api/stores`    | Alla icke-agent-butiker                           |
 | GET   | `/api/countries` | Distinkta länder (filtrera via `?storeIds=...`)   |
-| POST  | `/api/ask`       | **Streamar** ett vinförslag (text/plain)          |
+| POST  | `/api/ask`       | Returnerar AI-valda vinrekommendationer (JSON)    |
 
 `POST /api/ask` body:
 
@@ -110,7 +157,7 @@ Alla inställningar läses från `backend/.env` (eller miljövariabler):
 }
 ```
 
-Svaret returneras som strömmad UTF-8-text (`text/plain; charset=utf-8`), markdown-formaterad.
+Svaret returneras som JSON med `intro`, `recommendations` och eventuell `notes`.
 
 ## Uppdatera sortimentsdatan
 
@@ -120,7 +167,7 @@ Svaret returneras som strömmad UTF-8-text (`text/plain; charset=utf-8`), markdo
 
 - **Backend**:
   - FastAPI + Pydantic istället för Flask + handrullad validering
-  - Async streaming från Ollama → svar visas tecken för tecken i UI
+  - Strukturerade rekommendationer från OpenAI via JSON-schema
   - In-memory cache + O(1) deduplicering (gamla koden var O(n²))
   - Strukturerad logging, miljö-config, riktig felhantering
   - 11 enhetstester

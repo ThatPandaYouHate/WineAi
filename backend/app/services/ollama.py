@@ -1,4 +1,4 @@
-"""Async client for talking to a local Ollama server."""
+"""Async client for talking to OpenAI's chat completions API."""
 from __future__ import annotations
 
 import json
@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from app.errors import OllamaError, OllamaUnavailable
+from app.errors import OpenAIError, OpenAIUnavailable
 
 
 logger = logging.getLogger(__name__)
@@ -44,9 +44,7 @@ SYSTEM_PROMPT = (
 )
 
 
-# JSON Schema sent to Ollama (>=0.5) so the model is *forced* to obey it.
-# Older Ollama versions ignore non-string format values and fall back to
-# unrestricted JSON output.
+# JSON Schema sent to OpenAI so the model is forced to obey output shape.
 RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -116,20 +114,26 @@ def build_user_message(
     )
 
 
-class OllamaClient:
-    """Lightweight async wrapper around the Ollama REST API."""
+class OpenAIClient:
+    """Lightweight async wrapper around OpenAI's chat completions API."""
 
     def __init__(
         self,
         base_url: str,
+        api_key: str,
         model: str,
         timeout: float = 180.0,
     ) -> None:
         self._base_url = base_url.rstrip("/")
+        self._api_key = api_key.strip()
         self._model = model
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             timeout=httpx.Timeout(timeout, connect=5.0),
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
         )
 
     @property
@@ -144,15 +148,17 @@ class OllamaClient:
         user_prompt: str,
         numbered_wines: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        """Ask the LLM for structured wine recommendations.
-
-        Uses Ollama's ``format: "json"`` mode so the response is guaranteed
-        to be parseable JSON. Returns the parsed dict.
+        """Ask OpenAI for structured wine recommendations.
 
         Raises:
-            OllamaUnavailable: connection refused / DNS / timeout.
-            OllamaError: any other failure (HTTP, malformed JSON, ...).
+            OpenAIUnavailable: connection refused / DNS / timeout.
+            OpenAIError: any other failure (HTTP, malformed JSON, ...).
         """
+        if not self._api_key:
+            raise OpenAIError(
+                "OPENAI_API_KEY saknas. Lägg till den i backend/.env."
+            )
+
         payload = {
             "model": self._model,
             "messages": [
@@ -162,45 +168,56 @@ class OllamaClient:
                     "content": build_user_message(numbered_wines, user_prompt),
                 },
             ],
-            # JSON Schema is honoured by Ollama >= 0.5 (Dec 2024). Older
-            # versions ignore non-"json" format values; they will still
-            # produce JSON, just without schema enforcement.
-            "format": RESPONSE_SCHEMA,
-            "stream": False,
-            "options": {
-                "temperature": 0.2,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "wine_recommendations",
+                    "schema": RESPONSE_SCHEMA,
+                    "strict": True,
+                },
             },
+            "temperature": 0.2,
         }
 
         try:
-            response = await self._client.post("/api/chat", json=payload)
+            response = await self._client.post("/chat/completions", json=payload)
         except httpx.ConnectError as exc:
-            raise OllamaUnavailable(
-                f"Could not connect to Ollama at {self._base_url}"
+            raise OpenAIUnavailable(
+                f"Could not connect to OpenAI at {self._base_url}"
             ) from exc
         except httpx.HTTPError as exc:
-            raise OllamaError(f"HTTP error while talking to Ollama: {exc}") from exc
+            raise OpenAIError(f"HTTP error while talking to OpenAI: {exc}") from exc
 
         if response.status_code >= 400:
-            raise OllamaError(
-                f"Ollama responded {response.status_code}: {response.text}"
+            raise OpenAIError(
+                f"OpenAI responded {response.status_code}: {response.text}"
             )
 
         try:
             data = response.json()
         except json.JSONDecodeError as exc:
-            raise OllamaError(f"Ollama response was not JSON: {response.text}") from exc
+            raise OpenAIError(
+                f"OpenAI response was not JSON: {response.text}"
+            ) from exc
 
-        content = (data.get("message") or {}).get("content") or ""
-        if not content:
-            raise OllamaError("Ollama returned an empty message")
+        choices = data.get("choices") or []
+        message = choices[0].get("message") if choices and isinstance(choices[0], dict) else {}
+        content: Any = message.get("content") if isinstance(message, dict) else ""
+        if isinstance(content, list):
+            content = "".join(
+                str(part.get("text", ""))
+                for part in content
+                if isinstance(part, dict)
+            )
+        if not isinstance(content, str) or not content.strip():
+            raise OpenAIError("OpenAI returned an empty message")
 
         logger.info("LLM raw response (%d chars): %s", len(content), content)
 
         try:
             return json.loads(content)
         except json.JSONDecodeError as exc:
-            logger.warning("LLM produced invalid JSON despite format=json: %s", content)
-            raise OllamaError(
+            logger.warning("LLM produced invalid JSON despite schema mode: %s", content)
+            raise OpenAIError(
                 "LLM produced invalid JSON. Try a stronger model or rephrase."
             ) from exc

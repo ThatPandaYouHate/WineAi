@@ -19,8 +19,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    ollama_url: str = "http://localhost:11434"
-    ollama_model: str = "mistral"
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_api_key: str = ""
+    openai_model: str = "gpt-5-mini"
 
     assortments_dir: Path = Field(default=BACKEND_ROOT.parent / "assortments")
 

@@ -12,7 +12,7 @@ from app.errors import AppError, app_error_handler, unhandled_error_handler
 from app.logging_config import configure_logging
 from app.routes import stores, wines
 from app.services.assortment import AssortmentService
-from app.services.ollama import OllamaClient
+from app.services.ollama import OpenAIClient
 
 
 logger = logging.getLogger(__name__)
@@ -25,24 +25,25 @@ async def lifespan(app: FastAPI):
 
     logger.info("Starting Wine AI backend")
     logger.info("Assortments dir: %s", settings.assortments_dir)
-    logger.info("Ollama: %s (model=%s)", settings.ollama_url, settings.ollama_model)
+    logger.info("OpenAI: %s (model=%s)", settings.openai_base_url, settings.openai_model)
 
     assortment_service = AssortmentService(settings.assortments_dir)
     assortment_service.load_stores()
 
-    ollama_client = OllamaClient(
-        base_url=settings.ollama_url,
-        model=settings.ollama_model,
+    openai_client = OpenAIClient(
+        base_url=settings.openai_base_url,
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
     )
 
     app.state.assortment = assortment_service
-    app.state.ollama = ollama_client
+    app.state.openai = openai_client
     app.state.settings = settings
 
     try:
         yield
     finally:
-        await ollama_client.aclose()
+        await openai_client.aclose()
         logger.info("Wine AI backend stopped")
 
 
@@ -53,7 +54,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Wine AI",
         version="1.0.0",
-        description="Local wine recommender backed by Systembolaget data and Ollama.",
+        description="Wine recommender backed by Systembolaget data and OpenAI.",
         lifespan=lifespan,
     )
 

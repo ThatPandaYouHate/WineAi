@@ -25,14 +25,14 @@ class StoreNotFound(AppError):
     public_message = "One or more requested stores were not found"
 
 
-class OllamaUnavailable(AppError):
+class OpenAIUnavailable(AppError):
     status_code = 503
-    public_message = "The local LLM (Ollama) is not reachable"
+    public_message = "OpenAI API is not reachable"
 
 
-class OllamaError(AppError):
+class OpenAIError(AppError):
     status_code = 502
-    public_message = "The local LLM returned an error"
+    public_message = "OpenAI returned an error"
 
 
 async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:

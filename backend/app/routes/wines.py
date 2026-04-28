@@ -7,10 +7,10 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
-from app.errors import OllamaError, OllamaUnavailable
+from app.errors import OpenAIError, OpenAIUnavailable
 from app.schemas import AskRequest, AskResponse, Recommendation, Wine
 from app.services.assortment import AssortmentService
-from app.services.ollama import OllamaClient, number_wines_for_prompt
+from app.services.ollama import OpenAIClient, number_wines_for_prompt
 
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,7 @@ async def ask(request: Request, body: AskRequest) -> AskResponse:
     """Return structured wine recommendations for the given request."""
     settings = request.app.state.settings
     assortment: AssortmentService = request.app.state.assortment
-    ollama: OllamaClient = request.app.state.ollama
+    openai: OpenAIClient = request.app.state.openai
 
     wines = assortment.filter_wines(
         site_ids=body.store_ids,
@@ -165,7 +165,7 @@ async def ask(request: Request, body: AskRequest) -> AskResponse:
     )
     numbered = number_wines_for_prompt(trimmed)
     logger.info(
-        "Asking Ollama with %d/%d wines (cap=%d, ids 1..%d)",
+        "Asking OpenAI with %d/%d wines (cap=%d, ids 1..%d)",
         len(trimmed),
         len(wines),
         settings.max_wines_to_llm,
@@ -189,19 +189,19 @@ async def ask(request: Request, body: AskRequest) -> AskResponse:
     # first try, especially if the user message is a recipe or food name.
     for attempt in (1, 2):
         try:
-            result = await ollama.request_recommendations(body.prompt, numbered)
-        except OllamaUnavailable as exc:
-            logger.warning("Ollama unavailable: %s", exc)
+            result = await openai.request_recommendations(body.prompt, numbered)
+        except OpenAIUnavailable as exc:
+            logger.warning("OpenAI unavailable: %s", exc)
             return AskResponse(
                 intro=(
-                    f"Kunde inte nå Ollama på {settings.ollama_url}. "
-                    "Kontrollera att Ollama körs och försök igen."
+                    f"Kunde inte nå OpenAI på {settings.openai_base_url}. "
+                    "Kontrollera nätverk och API-nyckel och försök igen."
                 ),
                 matchedWineCount=len(wines),
                 notes=[str(exc)],
             )
-        except OllamaError as exc:
-            logger.warning("Ollama error (attempt %d): %s", attempt, exc)
+        except OpenAIError as exc:
+            logger.warning("OpenAI error (attempt %d): %s", attempt, exc)
             last_error = str(exc)
             continue
 
@@ -232,7 +232,7 @@ async def ask(request: Request, body: AskRequest) -> AskResponse:
         intro = (
             "AI:n kunde inte välja några viner från listan – "
             "modellen kan vara för svag för det här jobbet. "
-            "Prova en starkare modell (t.ex. llama3.1) eller "
+            "Prova en starkare modell (t.ex. gpt-5) eller "
             "skriv om frågan."
         )
         if last_error:
